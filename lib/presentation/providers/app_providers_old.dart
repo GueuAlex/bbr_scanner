@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/storage/secure_storage_service.dart';
-import '../../core/storage/hive_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/sync_service.dart';
 import '../../core/services/validation_service.dart';
@@ -20,29 +19,31 @@ final secureStorageProvider = Provider<SecureStorageService>((ref) {
   return SecureStorageService();
 });
 
-final hiveServiceProvider = Provider<HiveService>((ref) {
-  return HiveService();
+final databaseServiceProvider = Provider<DatabaseService>((ref) {
+  return DatabaseService();
 });
 
-final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
+final sharedPreferencesProvider = FutureProvider<SharedPreferences>((
+  ref,
+) async {
   return await SharedPreferences.getInstance();
 });
 
 // === Repositories ===
 
 final scanRepositoryProvider = Provider<ScanRepository>((ref) {
-  final hive = ref.watch(hiveServiceProvider);
-  return ScanRepository(hive);
+  final database = ref.watch(databaseServiceProvider);
+  return ScanRepository(database);
 });
 
 final ticketRepositoryProvider = Provider<TicketRepository>((ref) {
-  final hive = ref.watch(hiveServiceProvider);
-  return TicketRepository(hive);
+  final database = ref.watch(databaseServiceProvider);
+  return TicketRepository(database);
 });
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
-  final hive = ref.watch(hiveServiceProvider);
-  return UserRepository(hive);
+  final database = ref.watch(databaseServiceProvider);
+  return UserRepository(database);
 });
 
 // === Business Logic Services ===
@@ -70,7 +71,9 @@ final qrDecoderServiceProvider = Provider<QrDecoderService>((ref) {
 // === State Management ===
 
 /// État de l'utilisateur connecté
-final currentUserProvider = StateNotifierProvider<CurrentUserNotifier, User?>((ref) {
+final currentUserProvider = StateNotifierProvider<CurrentUserNotifier, User?>((
+  ref,
+) {
   final userRepository = ref.watch(userRepositoryProvider);
   return CurrentUserNotifier(userRepository);
 });
@@ -102,7 +105,9 @@ class CurrentUserNotifier extends StateNotifier<User?> {
 }
 
 /// Configuration de l'application
-final appConfigProvider = StateNotifierProvider<AppConfigNotifier, AppConfig>((ref) {
+final appConfigProvider = StateNotifierProvider<AppConfigNotifier, AppConfig>((
+  ref,
+) {
   return AppConfigNotifier();
 });
 
@@ -129,10 +134,11 @@ class AppConfigNotifier extends StateNotifier<AppConfig> {
 }
 
 /// Point de scan sélectionné (Embarquement/Débarquement)
-final selectedScanPointProvider = StateNotifierProvider<SelectedScanPointNotifier, ScanType>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return SelectedScanPointNotifier(prefs);
-});
+final selectedScanPointProvider =
+    StateNotifierProvider<SelectedScanPointNotifier, ScanType>((ref) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return SelectedScanPointNotifier(prefs);
+    });
 
 class SelectedScanPointNotifier extends StateNotifier<ScanType> {
   final AsyncValue<SharedPreferences> _prefsAsync;

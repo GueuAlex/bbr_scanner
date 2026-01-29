@@ -2,7 +2,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:crypto/crypto.dart';
 
 /// Script pour générer des QR codes de test (format JSON simple)
 /// Usage: dart tools/generate_demo_qr.dart

@@ -1,8 +1,10 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:hive/hive.dart';
 import '../../domain/entities/user.dart';
 
 part 'user_model.g.dart';
 
+@HiveType(typeId: 0)
 @JsonSerializable()
 class UserModel extends User {
   const UserModel({

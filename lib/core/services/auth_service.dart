@@ -36,10 +36,7 @@ class AuthResult {
   }
 
   factory AuthResult.failure(String message) {
-    return AuthResult(
-      success: false,
-      errorMessage: message,
-    );
+    return AuthResult(success: false, errorMessage: message);
   }
 }
 
@@ -50,17 +47,16 @@ class AuthService {
   final Dio _dio;
   final _logger = Logger();
 
-  AuthService(
-    this._secureStorage,
-    this._userRepository,
-  ) : _dio = Dio(BaseOptions(
-          baseUrl: dotenv.env['ENV_BASE_URL'] ?? 'https://api.bbr-demo.com/api/v1',
+  AuthService(this._secureStorage, this._userRepository)
+    : _dio = Dio(
+        BaseOptions(
+          baseUrl:
+              dotenv.env['ENV_BASE_URL'] ?? 'https://api.bbr-demo.com/api/v1',
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ));
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
 
   /// Connexion avec email et mot de passe
   Future<AuthResult> login({
@@ -79,10 +75,7 @@ class AuthService {
       // Login réel via API
       final response = await _dio.post(
         '/auth/login',
-        data: {
-          'email': email,
-          'password': password,
-        },
+        data: {'email': email, 'password': password},
       );
 
       if (response.statusCode == 200) {
@@ -137,7 +130,8 @@ class AuthService {
       role: 'AGENT',
     );
 
-    const demoAccessToken = 'demo_access_token_${DateTime.now().millisecondsSinceEpoch}';
+    final demoAccessToken =
+        'demo_access_token_${DateTime.now().millisecondsSinceEpoch}';
     const demoRefreshToken = 'demo_refresh_token';
 
     // Sauvegarder les tokens demo
@@ -228,7 +222,9 @@ class AuthService {
         case 403:
           return AuthResult.failure('Accès refusé');
         case 429:
-          return AuthResult.failure('Trop de tentatives. Veuillez réessayer plus tard');
+          return AuthResult.failure(
+            'Trop de tentatives. Veuillez réessayer plus tard',
+          );
         default:
           return AuthResult.failure('Erreur serveur ($statusCode)');
       }

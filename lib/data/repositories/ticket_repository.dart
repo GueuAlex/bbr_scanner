@@ -1,32 +1,23 @@
 import 'package:logger/logger.dart';
-import '../../core/storage/database_service.dart';
+import '../../core/storage/hive_service.dart';
+import '../../core/constants/enums.dart';
 import '../../domain/entities/ticket.dart';
 import '../models/ticket_model.dart';
 
-/// Repository pour la gestion des tickets
+/// Repository pour la gestion des tickets avec Hive
 class TicketRepository {
-  final DatabaseService _databaseService;
+  final HiveService _hiveService;
   final _logger = Logger();
 
-  TicketRepository(this._databaseService);
+  TicketRepository(this._hiveService);
 
   /// Sauvegarde ou met à jour un ticket
   Future<void> saveTicket(Ticket ticket) async {
     try {
-      final db = await _databaseService.database;
+      final box = _hiveService.getTicketsBox();
       final model = TicketModel.fromEntity(ticket);
 
-      final now = DateTime.now().millisecondsSinceEpoch;
-
-      await db.insert(
-        'tickets',
-        {
-          ...model.toMap(),
-          'createdAt': now,
-          'updatedAt': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await box.put(ticket.id, model);
 
       _logger.i('Ticket saved: ${ticket.id}');
     } catch (e, stack) {
@@ -38,21 +29,15 @@ class TicketRepository {
   /// Récupère un ticket par ID
   Future<Ticket?> getTicketById(String ticketId) async {
     try {
-      final db = await _databaseService.database;
+      final box = _hiveService.getTicketsBox();
+      final model = box.get(ticketId);
 
-      final maps = await db.query(
-        'tickets',
-        where: 'id = ?',
-        whereArgs: [ticketId],
-        limit: 1,
-      );
-
-      if (maps.isEmpty) {
+      if (model == null) {
         _logger.d('Ticket not found: $ticketId');
         return null;
       }
 
-      return TicketModel.fromMap(maps.first).toEntity();
+      return model.toEntity();
     } catch (e, stack) {
       _logger.e('Error getting ticket: $e', error: e, stackTrace: stack);
       return null;
@@ -62,21 +47,17 @@ class TicketRepository {
   /// Récupère un ticket par code
   Future<Ticket?> getTicketByCode(String code) async {
     try {
-      final db = await _databaseService.database;
+      final box = _hiveService.getTicketsBox();
 
-      final maps = await db.query(
-        'tickets',
-        where: 'code = ?',
-        whereArgs: [code],
-        limit: 1,
-      );
-
-      if (maps.isEmpty) {
-        _logger.d('Ticket not found by code: $code');
-        return null;
+      // Parcourir tous les tickets pour trouver celui avec le bon code
+      for (var ticket in box.values) {
+        if (ticket.code == code) {
+          return ticket.toEntity();
+        }
       }
 
-      return TicketModel.fromMap(maps.first).toEntity();
+      _logger.d('Ticket not found by code: $code');
+      return null;
     } catch (e, stack) {
       _logger.e('Error getting ticket by code: $e', error: e, stackTrace: stack);
       return null;
@@ -86,19 +67,15 @@ class TicketRepository {
   /// Met à jour le statut d'un ticket
   Future<void> updateTicketStatus(String ticketId, TicketStatus newStatus) async {
     try {
-      final db = await _databaseService.database;
+      final box = _hiveService.getTicketsBox();
+      final model = box.get(ticketId);
 
-      await db.update(
-        'tickets',
-        {
-          'status': newStatus.value,
-          'updatedAt': DateTime.now().millisecondsSinceEpoch,
-        },
-        where: 'id = ?',
-        whereArgs: [ticketId],
-      );
+      if (model != null) {
+        final updatedTicket = model.copyWith(status: newStatus);
+        await box.put(ticketId, updatedTicket as TicketModel);
 
-      _logger.i('Ticket status updated: $ticketId → ${newStatus.value}');
+        _logger.i('Ticket status updated: $ticketId → ${newStatus.value}');
+      }
     } catch (e, stack) {
       _logger.e('Error updating ticket status: $e', error: e, stackTrace: stack);
       rethrow;
@@ -108,17 +85,16 @@ class TicketRepository {
   /// Récupère tous les tickets
   Future<List<Ticket>> getAllTickets({int? limit}) async {
     try {
-      final db = await _databaseService.database;
+      final box = _hiveService.getTicketsBox();
+      final tickets = box.values.map((model) => model.toEntity()).toList();
 
-      final maps = await db.query(
-        'tickets',
-        orderBy: 'updatedAt DESC',
-        limit: limit,
-      );
+      _logger.d('Retrieved ${tickets.length} tickets');
 
-      _logger.d('Retrieved ${maps.length} tickets');
+      if (limit != null && tickets.length > limit) {
+        return tickets.sublist(0, limit);
+      }
 
-      return maps.map((map) => TicketModel.fromMap(map).toEntity()).toList();
+      return tickets;
     } catch (e, stack) {
       _logger.e('Error getting all tickets: $e', error: e, stackTrace: stack);
       return [];
@@ -128,8 +104,8 @@ class TicketRepository {
   /// Supprime tous les tickets
   Future<void> deleteAllTickets() async {
     try {
-      final db = await _databaseService.database;
-      await db.delete('tickets');
+      final box = _hiveService.getTicketsBox();
+      await box.clear();
       _logger.w('All tickets deleted');
     } catch (e, stack) {
       _logger.e('Error deleting all tickets: $e', error: e, stackTrace: stack);

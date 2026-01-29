@@ -14,10 +14,7 @@ import 'dart:async';
 class ScannerScreen extends ConsumerStatefulWidget {
   final ScanType scanType;
 
-  const ScannerScreen({
-    super.key,
-    required this.scanType,
-  });
+  const ScannerScreen({super.key, required this.scanType});
 
   @override
   ConsumerState<ScannerScreen> createState() => _ScannerScreenState();
@@ -137,7 +134,10 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
       // 7. Mettre à jour le statut du ticket si validé
       if (validationResult.isValid && validationResult.newStatus != null) {
-        await ticketRepo.updateTicketStatus(ticket.id, validationResult.newStatus!);
+        await ticketRepo.updateTicketStatus(
+          ticket.id,
+          validationResult.newStatus!,
+        );
         ticket = ticket.copyWith(status: validationResult.newStatus);
       }
 
@@ -146,10 +146,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ScanResultScreen(
-              ticket: ticket!,
-              scanEvent: scanEvent,
-            ),
+            builder: (context) =>
+                ScanResultScreen(ticket: ticket!, scanEvent: scanEvent),
           ),
         );
       }
@@ -179,9 +177,9 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       appBar: AppBar(
         title: Text(widget.scanType.label),
         actions: [
-          IconButton(
+          /*  IconButton(
             icon: ValueListenableBuilder(
-              valueListenable: _controller.torchState,
+              valueListenable: _controller.torchEnabled,
               builder: (context, torchState, child) {
                 switch (torchState) {
                   case TorchState.on:
@@ -194,22 +192,16 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
             ),
             onPressed: () => _controller.toggleTorch(),
             tooltip: 'Flash',
-          ),
+          ), */
         ],
       ),
       body: Stack(
         children: [
           // Scanner
-          MobileScanner(
-            controller: _controller,
-            onDetect: _handleBarcode,
-          ),
+          MobileScanner(controller: _controller, onDetect: _handleBarcode),
 
           // Overlay avec viewfinder
-          CustomPaint(
-            painter: _ScannerOverlayPainter(),
-            child: Container(),
-          ),
+          CustomPaint(painter: _ScannerOverlayPainter(), child: Container()),
 
           // Instructions
           Positioned(
@@ -303,10 +295,12 @@ class _ScannerOverlayPainter extends CustomPainter {
     // Dessiner l'overlay avec un trou pour le scanner
     final path = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
-        const Radius.circular(20),
-      ))
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
+          const Radius.circular(20),
+        ),
+      )
       ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(path, paint);
@@ -320,26 +314,52 @@ class _ScannerOverlayPainter extends CustomPainter {
     final cornerLength = 30.0;
 
     // Coin supérieur gauche
-    canvas.drawLine(Offset(left, top), Offset(left + cornerLength, top), borderPaint);
-    canvas.drawLine(Offset(left, top), Offset(left, top + cornerLength), borderPaint);
+    canvas.drawLine(
+      Offset(left, top),
+      Offset(left + cornerLength, top),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(left, top),
+      Offset(left, top + cornerLength),
+      borderPaint,
+    );
 
     // Coin supérieur droit
-    canvas.drawLine(Offset(left + scanAreaSize, top),
-        Offset(left + scanAreaSize - cornerLength, top), borderPaint);
-    canvas.drawLine(Offset(left + scanAreaSize, top),
-        Offset(left + scanAreaSize, top + cornerLength), borderPaint);
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top),
+      Offset(left + scanAreaSize - cornerLength, top),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top),
+      Offset(left + scanAreaSize, top + cornerLength),
+      borderPaint,
+    );
 
     // Coin inférieur gauche
-    canvas.drawLine(Offset(left, top + scanAreaSize),
-        Offset(left + cornerLength, top + scanAreaSize), borderPaint);
-    canvas.drawLine(Offset(left, top + scanAreaSize),
-        Offset(left, top + scanAreaSize - cornerLength), borderPaint);
+    canvas.drawLine(
+      Offset(left, top + scanAreaSize),
+      Offset(left + cornerLength, top + scanAreaSize),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(left, top + scanAreaSize),
+      Offset(left, top + scanAreaSize - cornerLength),
+      borderPaint,
+    );
 
     // Coin inférieur droit
-    canvas.drawLine(Offset(left + scanAreaSize, top + scanAreaSize),
-        Offset(left + scanAreaSize - cornerLength, top + scanAreaSize), borderPaint);
-    canvas.drawLine(Offset(left + scanAreaSize, top + scanAreaSize),
-        Offset(left + scanAreaSize, top + scanAreaSize - cornerLength), borderPaint);
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top + scanAreaSize),
+      Offset(left + scanAreaSize - cornerLength, top + scanAreaSize),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(left + scanAreaSize, top + scanAreaSize),
+      Offset(left + scanAreaSize, top + scanAreaSize - cornerLength),
+      borderPaint,
+    );
   }
 
   @override

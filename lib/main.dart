@@ -7,6 +7,7 @@ import 'presentation/auth/login_screen.dart';
 import 'presentation/scanner/scan_point_selection_screen.dart';
 import 'presentation/providers/app_providers.dart';
 import 'core/constants/app_constants.dart';
+import 'core/storage/hive_service.dart';
 
 final logger = Logger(
   printer: PrettyPrinter(
@@ -29,6 +30,15 @@ void main() async {
     logger.e('Failed to load .env file: $e');
   }
 
+  // Initialiser Hive (base de données locale NoSQL)
+  try {
+    final hiveService = HiveService();
+    await hiveService.init();
+    logger.i('Hive initialized successfully');
+  } catch (e, stack) {
+    logger.e('Failed to initialize Hive: $e', error: e, stackTrace: stack);
+  }
+
   // Définir l'orientation portrait seulement
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -45,11 +55,7 @@ void main() async {
 
   logger.i('${AppConstants.appName} v${AppConstants.appVersion} starting...');
 
-  runApp(
-    const ProviderScope(
-      child: BBRScannerApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: BBRScannerApp()));
 }
 
 class BBRScannerApp extends ConsumerWidget {
@@ -77,10 +83,7 @@ class BBRScannerApp extends ConsumerWidget {
         seedColor: const Color(0xFF2196F3),
         brightness: Brightness.light,
       ),
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-      ),
+      appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       cardTheme: const CardThemeData(
         elevation: 2,
         shape: RoundedRectangleBorder(
@@ -90,9 +93,7 @@ class BBRScannerApp extends ConsumerWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -106,10 +107,7 @@ class BBRScannerApp extends ConsumerWidget {
         seedColor: const Color(0xFF2196F3),
         brightness: Brightness.dark,
       ),
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-      ),
+      appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       cardTheme: const CardThemeData(
         elevation: 2,
         shape: RoundedRectangleBorder(
@@ -119,9 +117,7 @@ class BBRScannerApp extends ConsumerWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -159,10 +155,7 @@ class AppInitializer extends ConsumerWidget {
               SizedBox(height: 24),
               Text(
                 AppConstants.appName,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 8),
               Text('Chargement...'),

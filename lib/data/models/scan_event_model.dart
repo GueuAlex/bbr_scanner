@@ -1,9 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:hive/hive.dart';
 import '../../core/constants/enums.dart';
 import '../../domain/entities/scan_event.dart';
 
 part 'scan_event_model.g.dart';
 
+@HiveType(typeId: 2)
 @JsonSerializable()
 class ScanEventModel extends ScanEvent {
   const ScanEventModel({

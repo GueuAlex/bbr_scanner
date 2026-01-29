@@ -214,8 +214,8 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      final databaseService = ref.read(databaseServiceProvider);
-      final count = await databaseService.cleanOldScans();
+      final hiveService = ref.read(hiveServiceProvider);
+      final count = await hiveService.cleanOldScans();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,9 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:hive/hive.dart';
 import '../../core/constants/enums.dart';
 import '../../domain/entities/ticket.dart';
 
 part 'ticket_model.g.dart';
 
+@HiveType(typeId: 1)
 @JsonSerializable()
 class TicketModel extends Ticket {
   const TicketModel({
