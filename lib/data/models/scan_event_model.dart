@@ -88,6 +88,36 @@ class ScanEventModel extends ScanEvent {
     );
   }
 
+  /// Crée une copie avec les champs modifiés
+  @override
+  ScanEventModel copyWith({
+    String? id,
+    String? ticketId,
+    ScanType? scanType,
+    DateTime? timestamp,
+    String? geohash,
+    String? deviceId,
+    String? agentId,
+    bool? offline,
+    ScanVerdict? verdict,
+    String? reason,
+    DateTime? syncedAt,
+  }) {
+    return ScanEventModel(
+      id: id ?? this.id,
+      ticketId: ticketId ?? this.ticketId,
+      scanType: scanType ?? this.scanType,
+      timestamp: timestamp ?? this.timestamp,
+      geohash: geohash ?? this.geohash,
+      deviceId: deviceId ?? this.deviceId,
+      agentId: agentId ?? this.agentId,
+      offline: offline ?? this.offline,
+      verdict: verdict ?? this.verdict,
+      reason: reason ?? this.reason,
+      syncedAt: syncedAt ?? this.syncedAt,
+    );
+  }
+
   /// Conversion depuis/vers Map pour SQLite
   factory ScanEventModel.fromMap(Map<String, dynamic> map) {
     return ScanEventModel(

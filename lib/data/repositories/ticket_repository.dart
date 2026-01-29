@@ -72,7 +72,7 @@ class TicketRepository {
 
       if (model != null) {
         final updatedTicket = model.copyWith(status: newStatus);
-        await box.put(ticketId, updatedTicket as TicketModel);
+        await box.put(ticketId, updatedTicket);
 
         _logger.i('Ticket status updated: $ticketId → ${newStatus.value}');
       }

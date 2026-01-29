@@ -58,6 +58,24 @@ class TicketModel extends Ticket {
     );
   }
 
+  /// Crée une copie avec les champs modifiés
+  @override
+  TicketModel copyWith({
+    String? id,
+    String? code,
+    TicketStatus? status,
+    DateTime? expiresAt,
+    Map<String, dynamic>? meta,
+  }) {
+    return TicketModel(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      status: status ?? this.status,
+      expiresAt: expiresAt ?? this.expiresAt,
+      meta: meta ?? this.meta,
+    );
+  }
+
   /// Conversion depuis/vers Map pour SQLite
   factory TicketModel.fromMap(Map<String, dynamic> map) {
     return TicketModel(

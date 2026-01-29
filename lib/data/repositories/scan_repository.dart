@@ -55,7 +55,7 @@ class ScanRepository {
 
       if (model != null) {
         final synced = model.copyWith(syncedAt: DateTime.now());
-        await box.put(scanId, synced as ScanEventModel);
+        await box.put(scanId, synced);
 
         _logger.d('Scan marked as synced: $scanId');
       }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:vibration/vibration.dart';
@@ -10,7 +11,7 @@ import '../../domain/entities/ticket.dart';
 import '../../domain/entities/scan_event.dart';
 import 'dart:async';
 
-/// Écran de scanner QR
+/// Écran de scanner QR moderne et épuré
 class ScannerScreen extends ConsumerStatefulWidget {
   final ScanType scanType;
 
@@ -20,7 +21,8 @@ class ScannerScreen extends ConsumerStatefulWidget {
   ConsumerState<ScannerScreen> createState() => _ScannerScreenState();
 }
 
-class _ScannerScreenState extends ConsumerState<ScannerScreen> {
+class _ScannerScreenState extends ConsumerState<ScannerScreen>
+    with SingleTickerProviderStateMixin {
   final MobileScannerController _controller = MobileScannerController(
     formats: [BarcodeFormat.qrCode],
     detectionSpeed: DetectionSpeed.noDuplicates,
@@ -29,9 +31,36 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   bool _isProcessing = false;
   DateTime? _lastScanTime;
   final _debounceDelay = const Duration(seconds: 1);
+  bool _isTorchOn = false;
+
+  // Animations
+  late AnimationController _scanAnimationController;
+  late Animation<double> _scanAnimation;
+  bool _showScanEffect = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+
+    // Animation de la ligne de scan
+    _scanAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _scanAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _scanAnimationController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -45,7 +74,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
     if (rawValue == null || rawValue.isEmpty) return;
 
-    // Debounce pour éviter les scans multiples
+    // Debounce
     final now = DateTime.now();
     if (_lastScanTime != null &&
         now.difference(_lastScanTime!) < _debounceDelay) {
@@ -57,12 +86,22 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     setState(() {
       _isProcessing = true;
       _lastScanTime = now;
+      _showScanEffect = true;
     });
 
     // Vibration feedback
     if (await Vibration.hasVibrator() ?? false) {
       Vibration.vibrate(duration: 100);
     }
+
+    // Animation effect
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {
+          _showScanEffect = false;
+        });
+      }
+    });
 
     await _processScan(rawValue);
 
@@ -80,11 +119,11 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       final payload = await qrDecoder.decode(qrData);
 
       if (payload == null) {
-        _showError('QR code invalide ou corrompu');
+        _showError('QR code invalide');
         return;
       }
 
-      // 2. Vérifier l'expiration du QR
+      // 2. Vérifier l'expiration
       if (payload.isExpired) {
         _showError('QR code expiré');
         return;
@@ -95,7 +134,6 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       var ticket = await ticketRepo.getTicketById(payload.ticketId);
 
       if (ticket == null) {
-        // Créer un nouveau ticket à partir du payload
         ticket = Ticket(
           id: payload.ticketId,
           code: payload.ticketId,
@@ -105,7 +143,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         await ticketRepo.saveTicket(ticket);
       }
 
-      // 4. Valider le scan selon les règles métier
+      // 4. Valider le scan
       final validator = ref.read(validationServiceProvider);
       final config = ref.read(appConfigProvider);
       final validationResult = validator.validateScan(
@@ -121,18 +159,18 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         ticketId: ticket.id,
         scanType: widget.scanType,
         timestamp: DateTime.now(),
-        deviceId: 'device-${user?.id ?? "unknown"}', // TODO: Get real device ID
+        deviceId: 'device-${user?.id ?? "unknown"}',
         agentId: user?.id ?? 'unknown',
-        offline: true, // Sera synchronisé plus tard
+        offline: true,
         verdict: validationResult.verdict,
         reason: validationResult.reason,
       );
 
-      // 6. Sauvegarder l'événement
+      // 6. Sauvegarder
       final scanRepo = ref.read(scanRepositoryProvider);
       await scanRepo.saveScanEvent(scanEvent);
 
-      // 7. Mettre à jour le statut du ticket si validé
+      // 7. Mettre à jour le statut
       if (validationResult.isValid && validationResult.newStatus != null) {
         await ticketRepo.updateTicketStatus(
           ticket.id,
@@ -141,7 +179,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         ticket = ticket.copyWith(status: validationResult.newStatus);
       }
 
-      // 8. Naviguer vers l'écran de résultat
+      // 8. Naviguer vers résultat
       if (mounted) {
         await Navigator.push(
           context,
@@ -152,7 +190,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         );
       }
     } catch (e) {
-      _showError('Erreur de traitement: $e');
+      _showError('Erreur: ${e.toString().substring(0, 30)}');
     }
   }
 
@@ -160,104 +198,198 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
       ),
     );
-
-    // Vibration d'erreur
     Vibration.vibrate(pattern: [0, 100, 100, 100]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
+    final scanAreaSize = size.width * 0.75;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.scanType.label),
-        actions: [
-          /*  IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller.torchEnabled,
-              builder: (context, torchState, child) {
-                switch (torchState) {
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on);
-                  case TorchState.off:
-                  default:
-                    return const Icon(Icons.flash_off);
-                }
-              },
-            ),
-            onPressed: () => _controller.toggleTorch(),
-            tooltip: 'Flash',
-          ), */
-        ],
-      ),
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Scanner
-          MobileScanner(controller: _controller, onDetect: _handleBarcode),
+          // Scanner plein écran
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleBarcode,
+          ),
 
-          // Overlay avec viewfinder
-          CustomPaint(painter: _ScannerOverlayPainter(), child: Container()),
-
-          // Instructions
+          // Gradient overlay haut
           Positioned(
-            bottom: 100,
+            top: 0,
             left: 0,
             right: 0,
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(16),
+              height: 150,
               decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.7),
+                    Colors.transparent,
+                  ],
+                ),
               ),
-              child: Column(
+            ),
+          ),
+
+          // Header
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    Icons.qr_code_scanner_rounded,
-                    color: Colors.white,
-                    size: 48,
+                  // Bouton retour
+                  _buildIconButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    onTap: () => Navigator.pop(context),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Placez le QR code dans le cadre',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
+
+                  // Type de scan
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
                     ),
-                    textAlign: TextAlign.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      widget.scanType.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.scanType == ScanType.board
-                        ? 'Contrôle Embarquement'
-                        : 'Contrôle Débarquement',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white70,
-                    ),
-                    textAlign: TextAlign.center,
+
+                  // Bouton flash
+                  _buildIconButton(
+                    icon: _isTorchOn
+                        ? Icons.flash_on_rounded
+                        : Icons.flash_off_rounded,
+                    onTap: () {
+                      setState(() {
+                        _isTorchOn = !_isTorchOn;
+                      });
+                      _controller.toggleTorch();
+                    },
                   ),
                 ],
               ),
             ),
           ),
 
-          // Indicateur de traitement
+          // Zone de scan avec animations
+          Center(
+            child: SizedBox(
+              width: scanAreaSize,
+              height: scanAreaSize,
+              child: Stack(
+                children: [
+                  // Coins animés
+                  ..._buildCorners(scanAreaSize),
+
+                  // Ligne de scan animée
+                  AnimatedBuilder(
+                    animation: _scanAnimation,
+                    builder: (context, child) {
+                      return Positioned(
+                        top: scanAreaSize * _scanAnimation.value,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 2,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.blue.shade400,
+                                Colors.transparent,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue.withOpacity(0.5),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Effet de scan
+                  if (_showScanEffect)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.green,
+                            width: 4,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.5),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Overlay de traitement
           if (_isProcessing)
             Container(
-              color: Colors.black54,
-              child: const Center(
+              color: Colors.black87,
+              child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      'Traitement...',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    SizedBox(
+                      width: 80,
+                      height: 80,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.blue.shade400,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Analyse en cours...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ],
                 ),
@@ -265,103 +397,160 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Implémenter la saisie manuelle
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saisie manuelle (À venir)')),
-          );
-        },
-        icon: const Icon(Icons.keyboard),
-        label: const Text('Saisie manuelle'),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
-}
 
-/// Painter pour l'overlay du scanner
-class _ScannerOverlayPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black54
-      ..style = PaintingStyle.fill;
-
-    final double scanAreaSize = size.width * 0.7;
-    final double left = (size.width - scanAreaSize) / 2;
-    final double top = (size.height - scanAreaSize) / 2;
-
-    // Dessiner l'overlay avec un trou pour le scanner
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
-          const Radius.circular(20),
+  Widget _buildIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.3),
+            width: 1,
+          ),
         ),
-      )
-      ..fillType = PathFillType.evenOdd;
-
-    canvas.drawPath(path, paint);
-
-    // Dessiner les coins du viewfinder
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-
-    final cornerLength = 30.0;
-
-    // Coin supérieur gauche
-    canvas.drawLine(
-      Offset(left, top),
-      Offset(left + cornerLength, top),
-      borderPaint,
-    );
-    canvas.drawLine(
-      Offset(left, top),
-      Offset(left, top + cornerLength),
-      borderPaint,
-    );
-
-    // Coin supérieur droit
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top),
-      Offset(left + scanAreaSize - cornerLength, top),
-      borderPaint,
-    );
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top),
-      Offset(left + scanAreaSize, top + cornerLength),
-      borderPaint,
-    );
-
-    // Coin inférieur gauche
-    canvas.drawLine(
-      Offset(left, top + scanAreaSize),
-      Offset(left + cornerLength, top + scanAreaSize),
-      borderPaint,
-    );
-    canvas.drawLine(
-      Offset(left, top + scanAreaSize),
-      Offset(left, top + scanAreaSize - cornerLength),
-      borderPaint,
-    );
-
-    // Coin inférieur droit
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top + scanAreaSize),
-      Offset(left + scanAreaSize - cornerLength, top + scanAreaSize),
-      borderPaint,
-    );
-    canvas.drawLine(
-      Offset(left + scanAreaSize, top + scanAreaSize),
-      Offset(left + scanAreaSize, top + scanAreaSize - cornerLength),
-      borderPaint,
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 24,
+        ),
+      ),
     );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  List<Widget> _buildCorners(double size) {
+    const cornerLength = 40.0;
+    const cornerWidth = 4.0;
+    const color = Colors.white;
+
+    return [
+      // Top-left
+      Positioned(
+        top: 0,
+        left: 0,
+        child: Container(
+          width: cornerLength,
+          height: cornerWidth,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 0,
+        left: 0,
+        child: Container(
+          width: cornerWidth,
+          height: cornerLength,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+
+      // Top-right
+      Positioned(
+        top: 0,
+        right: 0,
+        child: Container(
+          width: cornerLength,
+          height: cornerWidth,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              topRight: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 0,
+        right: 0,
+        child: Container(
+          width: cornerWidth,
+          height: cornerLength,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              topRight: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+
+      // Bottom-left
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: Container(
+          width: cornerLength,
+          height: cornerWidth,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        left: 0,
+        child: Container(
+          width: cornerWidth,
+          height: cornerLength,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+
+      // Bottom-right
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: Container(
+          width: cornerLength,
+          height: cornerWidth,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        bottom: 0,
+        right: 0,
+        child: Container(
+          width: cornerWidth,
+          height: cornerLength,
+          decoration: const BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
 }
